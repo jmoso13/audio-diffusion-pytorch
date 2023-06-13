@@ -79,13 +79,12 @@ class VDiffusion(Diffusion):
         alpha, beta = torch.cos(angle), torch.sin(angle)
         return alpha, beta
 
-    def forward(self, x: Tensor, **kwargs) -> Tensor:  # type: ignore
+    def forward(self, x: Tensor, noise: Tensor = torch.randn_like(x), **kwargs) -> Tensor:  # type: ignore
         batch_size, device = x.shape[0], x.device
         # Sample amount of noise to add for each batch element
         sigmas = self.sigma_distribution(num_samples=batch_size, device=device)
         sigmas_batch = extend_dim(sigmas, dim=x.ndim)
-        # Get noise
-        noise = torch.randn_like(x)
+        print('noise: ', noise, '\nmean: ', noise.mean(), '\nstd: ', noise.std())
         # Combine input and noise weighted by half-circle
         alphas, betas = self.get_alpha_beta(sigmas_batch)
         x_noisy = alphas * x + betas * noise
@@ -110,15 +109,13 @@ class ARVDiffusion(Diffusion):
         alpha, beta = torch.cos(angle), torch.sin(angle)
         return alpha, beta
 
-    def forward(self, x: Tensor, **kwargs) -> Tensor:
+    def forward(self, x: Tensor, noise: Tensor = torch.randn_like(x), **kwargs) -> Tensor:
         """Returns diffusion loss of v-objective with different noises per split"""
         b, _, t, device, dtype = *x.shape, x.device, x.dtype
         assert t == self.length, "input length must match length"
         # Sample amount of noise to add for each split
         sigmas = torch.rand((b, 1, self.num_splits), device=device, dtype=dtype)
         sigmas = repeat(sigmas, "b 1 n -> b 1 (n l)", l=self.split_length)
-        # Get noise
-        noise = torch.randn_like(x)
         # Combine input and noise weighted by half-circle
         alphas, betas = self.get_alpha_beta(sigmas)
         x_noisy = alphas * x + betas * noise
